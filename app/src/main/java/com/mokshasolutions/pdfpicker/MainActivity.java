@@ -80,8 +80,8 @@ public class MainActivity extends AppCompatActivity {
     private void openPdfPicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.setType("application/pdf").addCategory(Intent.CATEGORY_OPENABLE);
-//        pdfPickerLauncher.launch(intent);
-        startActivityForResult(intent, PICK_PDF_FILE);
+        pdfPickerLauncher.launch(intent);
+//        startActivityForResult(intent, PICK_PDF_FILE);
     }
 
     private String getFileName(Uri uri) {
@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
                 path = uri.getPath();
             } else {
                 cursor.moveToFirst();
-                int column_index = cursor.getColumnIndexOrThrow(projection[1]);
+                int column_index = cursor.getColumnIndexOrThrow(column);
                 path = cursor.getString(column_index);
                 Log.d("PDF DATA Path2", path + "");
                 cursor.close();
