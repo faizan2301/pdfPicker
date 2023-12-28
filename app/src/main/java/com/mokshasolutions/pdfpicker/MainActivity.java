@@ -3,20 +3,36 @@ package com.mokshasolutions.pdfpicker;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
     private Button pickPdfButton;
@@ -24,18 +40,25 @@ public class MainActivity extends AppCompatActivity {
     private static final int PICK_PDF_FILE = 2;
     private static String TAG = "PDF DATA";
     Context context;
+    public File imageFile, source, destination;
+    Uri imageUri;
     private ActivityResultLauncher<Intent> pdfPickerLauncher;
-
+    FileUtils fileUtils;
+    File storageDir=null;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         context = this;
         pickPdfButton = findViewById(R.id.pick_pdf_button);
+        fileUtils=new FileUtils(context);
+
         selectedPdfTextView = findViewById(R.id.selected_pdf_text_view);
         FileUtils fileUtils = new FileUtils(MainActivity.this);
+
         pickPdfButton.setOnClickListener(v -> {
             openPdfPicker();
+//            mGetContent.launch("application/pdf");
         });
 //        pdfPickerLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
 //                result -> {
@@ -77,11 +100,26 @@ public class MainActivity extends AppCompatActivity {
 //                });
     }
 
+
     private void openPdfPicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("application/pdf").addCategory(Intent.CATEGORY_OPENABLE);
-        pdfPickerLauncher.launch(intent);
-//        startActivityForResult(intent, PICK_PDF_FILE);
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        try {
+//            storageDir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+//            imageFile = File.createTempFile(imageFileName, ".pdf", storageDir);
+//            imageUri = FileProvider.getUriForFile(this, "com.mokshasolutions.pdfpicker.fileprovider", imageFile);
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("application/pdf").addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+//        pdfPickerLauncher.launch(intent);
+//            intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+            startActivityForResult(intent, PICK_PDF_FILE);
+//            startActivityForResult(intent, PICK_PDF_FILE);
+
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
     }
 
     private String getFileName(Uri uri) {
@@ -111,14 +149,11 @@ public class MainActivity extends AppCompatActivity {
             if (data != null) {
                 try {
                     uri = data.getData();
-                    Log.d("PDF DATA", "uri " + uri.getPath());
-                    File file = new File(uri.getPath());
-                    String path = getPath(uri);
-                    dumpImageMetaData(uri);
-                    Log.d("PDF DATA", "file1 " + file.getPath());
-                    Log.d("PDF DATA", "path " + path);
-//                    Log.d("PDF DATA", "path " + path);
-                    // Perform operations on the document using its URI.
+                    String fileName = getFileName(uri);
+                    String filePath = getFilePath(uri);
+                    Log.d(TAG, "onActivityResult: fileName "+fileName);
+                    Log.d(TAG, "onActivityResult: filePath "+filePath);
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -128,42 +163,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public String getPath(Uri uri) {
+        Cursor cursor=null;
         try {
-            String path = null;
-            final String column = "_data";
-            final String[] projection = {
-                    column, MediaStore.Images.Media.DATA
-            };
-            Cursor cursor = getContentResolver().query(uri, projection, null, null, null);
-
-            if (cursor == null) {
-                Log.d("PDF DATA Path1", "");
-                path = uri.getPath();
-            } else {
-                cursor.moveToFirst();
-                int column_index = cursor.getColumnIndexOrThrow(column);
-                path = cursor.getString(column_index);
-                Log.d("PDF DATA Path2", path + "");
-                cursor.close();
-            }
-
-            return ((path == null || path.isEmpty()) ? (uri.getPath()) : path);
-//            String[] projection = {MediaStore.Files.FileColumns.DATA};
-//            Cursor cursor = MainActivity.this.getContentResolver().query(uri, projection, null, null, null);
-//
-//            if (cursor != null) {
-//                int column_index = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA);
-//                cursor.moveToFirst();
-//                String filePath = cursor.getString(column_index);
-//                cursor.close();
-//                return filePath;
-//            }
-//
-//            Log.d("PDF DATA", "" + uri.getPath());
-//            return uri.getPath();
+            String[] projection = {MediaStore.Files.FileColumns.DATA};
+             cursor = managedQuery(uri, projection, null, null, null);
+            startManagingCursor(cursor);
+            int column_index = cursor.getColumnIndexOrThrow(projection[0]);
+            cursor.moveToFirst();
+            String path=cursor.getString(column_index);
+            Log.d(TAG, "getPath: "+path);
+            return path;
         } catch (Exception e) {
             Log.e("PDF DATA GET EXCEPTION", "" + e.getMessage());
             return "";
+        }finally {
+            assert cursor != null;
+            cursor.close();
         }
     }
 
@@ -218,4 +233,58 @@ public class MainActivity extends AppCompatActivity {
             cursor.close();
         }
     }
+//    private String getFileName(Uri uri) {
+//        String result = null;
+//        if (Objects.requireNonNull(uri.getScheme()).equals("content")) {
+//            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+//                if (cursor != null && cursor.moveToFirst()) {
+//                    result = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+//                }
+//            }
+//        }
+//        if (result == null) {
+//            result = uri.getLastPathSegment();
+//        }
+//        return result;
+//    }
+
+    private String getFilePath(Uri uri) {
+        try {
+            InputStream inputStream = getContentResolver().openInputStream(uri);
+            File file = new File(getCacheDir(), getFileName(uri));
+            copyInputStreamToFile(inputStream, file);
+            Objects.requireNonNull(inputStream).close();
+            return file.getAbsolutePath();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+    private void copyInputStreamToFile(InputStream inputStream, File file) {
+        try {
+            try (OutputStream output = new FileOutputStream(file)) {
+                byte[] buffer = new byte[4 * 1024];
+                int read;
+                while ((read = Objects.requireNonNull(inputStream).read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                }
+                output.flush();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+//    ActivityResultLauncher<String> mGetContent = registerForActivityResult(new ActivityResultContracts.GetContent(),
+//            new ActivityResultCallback<Uri>() {
+//                @Override
+//                public void onActivityResult(Uri uri) {
+//                    try {
+//                        Log.d(TAG, "onActivityResult: "+getPath(uri));
+//                    }catch (Exception e){
+//                        e.printStackTrace();
+//                    }
+//
+//                    // Handle the returned Uri
+//                }
+//            });
 }

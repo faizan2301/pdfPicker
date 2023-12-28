@@ -308,7 +308,7 @@ public class FileUtils {
      * @param newDirName if you want to create a directory, you can set this variable
      * @return
      */
-    private String copyFileToInternalStorage(Uri uri, String newDirName) {
+    public String copyFileToInternalStorage(Uri uri, String newDirName) {
         Uri returnUri = uri;
 
         Cursor returnCursor = context.getContentResolver().query(returnUri, new String[] {
