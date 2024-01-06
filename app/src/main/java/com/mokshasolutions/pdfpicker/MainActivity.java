@@ -1,6 +1,8 @@
 package com.mokshasolutions.pdfpicker;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -14,6 +16,7 @@ import android.provider.OpenableColumns;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -38,13 +41,15 @@ public class MainActivity extends AppCompatActivity {
     private Button pickPdfButton;
     private TextView selectedPdfTextView;
     private static final int PICK_PDF_FILE = 2;
+    static final int REQUEST_IMAGE_CAPTURE = 1;
     private static String TAG = "PDF DATA";
+    private static final int MY_CAMERA_REQUEST_CODE = 100;
     Context context;
     public File imageFile, source, destination;
-    Uri imageUri;
+    private Uri imageUri;
     private ActivityResultLauncher<Intent> pdfPickerLauncher;
     FileUtils fileUtils;
-    File storageDir=null;
+    File   photoFile =null;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -57,50 +62,86 @@ public class MainActivity extends AppCompatActivity {
         FileUtils fileUtils = new FileUtils(MainActivity.this);
 
         pickPdfButton.setOnClickListener(v -> {
-            openPdfPicker();
+//            openPdfPicker();
+            dispatchTakePictureIntent();
 //            mGetContent.launch("application/pdf");
         });
-//        pdfPickerLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
-//                result -> {
-//                    try {
-//                        if (result.getResultCode() == Activity.RESULT_OK) {
-//                            Intent data = result.getData();
-//                            if (data != null) {
-//                                Uri pdfUri = data.getData();
-////                                String path = getPath(pdfUri);
-////                                Log.d("PDF DATA", path + " getPath");
-//                                File file = new File(pdfUri.getPath());//create path from uri
-//                                final String[] split = file.getPath().split(":");//split the path.
-//                                String filePath = null;
-//                                File file1 = null;
+        pdfPickerLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    try {
+                        if (result.getResultCode() == Activity.RESULT_OK) {
+                            Intent data = result.getData();
+                            if (data != null) {
+                                Uri pdfUri = data.getData();
+                                Log.d(TAG, "onCreate: "+pdfUri.getPath());
+                            }
+
+                        } else {
+                            Toast.makeText(MainActivity.this, "No PDF selected", Toast.LENGTH_SHORT).show();
+                        }
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Log.e("PDF DATA Exception", e.getMessage() + "");
+                    }
+                });
+    }
+    private void dispatchTakePictureIntent() {
+        try {
+            if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.CAMERA}, MY_CAMERA_REQUEST_CODE);
+                return;
+            }
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String imageFileName = "JPEG_" + timeStamp + "_";
+            File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+            try {
+                imageFile = File.createTempFile(imageFileName, ".jpg", storageDir);
+//                        imageFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), imageFileName+".jpg");
+                imageUri = FileProvider.getUriForFile(this, "com.mokshasolutions.pdfpicker.fileprovider", imageFile);
+
+                Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+                    startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+//            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+//             photoFile = createImageFile();
+//            if (photoFile != null) {
+//                imageUri = FileProvider.getUriForFile(
+//                        this,
+//                        "com.mokshasolutions.pdfpicker.fileprovider",
+//                        photoFile
+//                );
 //
-////                                file1 = new File(getPath(pdfUri));
-//                                filePath = fileUtils.getPath(pdfUri);
-//                                file1 = new File(filePath);
+//                // Pass the URI to the camera intent
+//                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
 //
-//                                Log.d("PDF DATA", "filePath " + filePath + " abs " + file1.getAbsolutePath());
-//
-//
-//                                filePath = split[1];//assign it to a string(your choice).
-//                                Log.d("PDF DATA", "Path " + pdfUri.getPath());
-//                                Log.d("PDF DATA", "filePath2 " + filePath);
-//                                String pdfName = getFileName(pdfUri);
-//                                selectedPdfTextView.setText(pdfName);
-//                                // Do something with the selected PDF file
-//                            }
-//
-//                        } else {
-//                            Toast.makeText(MainActivity.this, "No PDF selected", Toast.LENGTH_SHORT).show();
-//                        }
-//
-//                    } catch (Exception e) {
-//                        e.printStackTrace();
-//                        Log.e("PDF DATA Exception", e.getMessage() + "");
-//                    }
-//                });
+//                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+//            } else {
+//                Toast.makeText(this, "Error creating image file", Toast.LENGTH_SHORT).show();
+//            }
+//            pdfPickerLauncher.launch(takePictureIntent);
+        }catch (Exception e){
+           e.printStackTrace();
+        }
+
     }
 
+    private File createImageFile() {
+        String imageFileName = "JPEG_" + System.currentTimeMillis();
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
 
+        try {
+            return File.createTempFile(imageFileName, ".jpg", storageDir);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
     private void openPdfPicker() {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
@@ -142,24 +183,43 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PICK_PDF_FILE && resultCode == Activity.RESULT_OK) {
-            Uri uri = null;
-            if (data != null) {
-                try {
-                    uri = data.getData();
-                    String fileName = getFileName(uri);
-                    String filePath = getFilePath(uri);
-                    Log.d(TAG, "onActivityResult: fileName "+fileName);
-                    Log.d(TAG, "onActivityResult: filePath "+filePath);
+        try {
+            if (requestCode == PICK_PDF_FILE && resultCode == Activity.RESULT_OK) {
+                Uri uri = null;
+                if (data != null) {
+                    try {
+                        uri = data.getData();
+                        String fileName = getFileName(uri);
+                        String filePath = getFilePath(uri);
+                        Log.d(TAG, "onActivityResult: fileName "+fileName);
+                        Log.d(TAG, "onActivityResult: filePath "+filePath);
 
-                } catch (Exception e) {
-                    e.printStackTrace();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            }
+            if(requestCode==REQUEST_IMAGE_CAPTURE&& resultCode == Activity.RESULT_OK){
+                Log.d(TAG, "onActivityResult: ");
+                if (data != null) {
+                    Uri uri=data.getData();
+
+                    if (uri != null) {
+                        Log.d(TAG, "onActivityResult:uri "+uri.getPath());
+                    }
+                    if(imageUri!=null){
+                        Log.d(TAG, "onActivityResult:imageUri "+imageUri.getPath());
+                    }
                 }
 
             }
+        }catch (Exception e){
+            e.printStackTrace();
         }
+
     }
 
     public String getPath(Uri uri) {
