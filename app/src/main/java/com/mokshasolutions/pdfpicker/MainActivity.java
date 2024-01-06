@@ -213,6 +213,7 @@ public class MainActivity extends AppCompatActivity {
                     if(imageUri!=null){
                         Log.d(TAG, "onActivityResult:imageUri "+imageUri.getPath());
                     }
+                    Log.d(TAG, "onActivityResult:imageUri "+imageFile.getAbsolutePath());
                 }
 
             }
