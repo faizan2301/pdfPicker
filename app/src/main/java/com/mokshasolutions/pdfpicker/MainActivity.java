@@ -21,8 +21,11 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.ImageCapture;
+import androidx.camera.core.ImageCaptureException;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
@@ -36,6 +39,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     private Button pickPdfButton;
@@ -47,6 +52,8 @@ public class MainActivity extends AppCompatActivity {
     Context context;
     public File imageFile, source, destination;
     private Uri imageUri;
+    private ImageCapture imageCapture;
+//    private Uri imageUri;
     private ActivityResultLauncher<Intent> pdfPickerLauncher;
     FileUtils fileUtils;
     File   photoFile =null;
@@ -60,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
         selectedPdfTextView = findViewById(R.id.selected_pdf_text_view);
         FileUtils fileUtils = new FileUtils(MainActivity.this);
-
+        imageCapture = new ImageCapture.Builder().build();
         pickPdfButton.setOnClickListener(v -> {
 //            openPdfPicker();
             dispatchTakePictureIntent();
@@ -88,42 +95,42 @@ public class MainActivity extends AppCompatActivity {
     }
     private void dispatchTakePictureIntent() {
         try {
-            if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.CAMERA}, MY_CAMERA_REQUEST_CODE);
-                return;
-            }
-            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-            String imageFileName = "JPEG_" + timeStamp + "_";
-            File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-            try {
-                imageFile = File.createTempFile(imageFileName, ".jpg", storageDir);
-//                        imageFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), imageFileName+".jpg");
-                imageUri = FileProvider.getUriForFile(this, "com.mokshasolutions.pdfpicker.fileprovider", imageFile);
-
-                Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
-                    startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-//            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-//             photoFile = createImageFile();
-//            if (photoFile != null) {
-//                imageUri = FileProvider.getUriForFile(
-//                        this,
-//                        "com.mokshasolutions.pdfpicker.fileprovider",
-//                        photoFile
-//                );
-//
-//                // Pass the URI to the camera intent
-//                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
-//
-//                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-//            } else {
-//                Toast.makeText(this, "Error creating image file", Toast.LENGTH_SHORT).show();
+//            if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+//                requestPermissions(new String[]{Manifest.permission.CAMERA}, MY_CAMERA_REQUEST_CODE);
+//                return;
 //            }
+//            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+//            String imageFileName = "JPEG_" + timeStamp + "_";
+//            File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+//            try {
+//                imageFile = File.createTempFile(imageFileName, ".jpg", storageDir);
+////                        imageFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), imageFileName+".jpg");
+//                imageUri = FileProvider.getUriForFile(this, "com.mokshasolutions.pdfpicker.fileprovider", imageFile);
+//
+//                Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+//                if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+//                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+//                    startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+//                }
+//            } catch (Exception e) {
+//                throw new RuntimeException(e);
+//            }
+            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+             photoFile = createImageFile();
+            if (photoFile != null) {
+                imageUri = FileProvider.getUriForFile(
+                        this,
+                        "com.mokshasolutions.pdfpicker.fileprovider",
+                        photoFile
+                );
+
+                // Pass the URI to the camera intent
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            } else {
+                Toast.makeText(this, "Error creating image file", Toast.LENGTH_SHORT).show();
+            }
 //            pdfPickerLauncher.launch(takePictureIntent);
         }catch (Exception e){
            e.printStackTrace();
@@ -131,6 +138,31 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private void captureImage() {
+        Executor cameraExecutor = Executors.newSingleThreadExecutor();
+
+        ImageCapture.OutputFileOptions outputFileOptions =
+                new ImageCapture.OutputFileOptions.Builder(createImageFile()).build();
+
+        imageCapture.takePicture(outputFileOptions, cameraExecutor,
+                new ImageCapture.OnImageSavedCallback() {
+                    @Override
+                    public void onImageSaved(ImageCapture.OutputFileResults outputFileResults) {
+                        // The image has been saved successfully
+                        // Now, you can use the imageUri to upload the image to the server
+//                        uploadImageToServer(imageUri);
+                    }
+
+
+                    @Override
+                    public void onError(@NonNull ImageCaptureException error) {
+                        // Handle the error during image capture
+                        error.printStackTrace();
+                        Toast.makeText(MainActivity.this, "Error capturing image", Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
+    }
     private File createImageFile() {
         String imageFileName = "JPEG_" + System.currentTimeMillis();
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
@@ -213,8 +245,9 @@ public class MainActivity extends AppCompatActivity {
                     if(imageUri!=null){
                         Log.d(TAG, "onActivityResult:imageUri "+imageUri.getPath());
                     }
-                    Log.d(TAG, "onActivityResult:imageUri "+imageFile.getAbsolutePath());
+
                 }
+                Log.d(TAG, "onActivityResult:imageUri "+photoFile.getAbsolutePath());
 
             }
         }catch (Exception e){
